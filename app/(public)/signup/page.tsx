@@ -1,53 +1,55 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import AuthLayout from "../components/AuthLayout";
-import FormField from "../components/FormField";
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import AuthLayout from "@/app/components/AuthLayout";
+import FormField from "@/app/components/FormField";
+import { signupSchema } from "@/lib/validation/auth";
+import { signup } from "./actions";
 
 export default function SignupPage() {
+  const router = useRouter();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<
+    Record<string, string[] | undefined>
+  >({});
+  const [formError, setFormError] = useState<string | undefined>();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const firstNameError =
-    submitted && firstName.trim().length === 0
-      ? "First name is required"
-      : undefined;
-  const lastNameError =
-    submitted && lastName.trim().length === 0
-      ? "Last name is required"
-      : undefined;
-  const emailError =
-    submitted && !EMAIL_PATTERN.test(email)
-      ? "Enter a valid email address"
-      : undefined;
-  const passwordError =
-    submitted && password.length < 8
-      ? "Password must be at least 8 characters"
-      : undefined;
-  const confirmPasswordError =
-    submitted && confirmPassword !== password
-      ? "Passwords do not match"
-      : undefined;
-
-  const isValid =
-    firstName.trim().length > 0 &&
-    lastName.trim().length > 0 &&
-    EMAIL_PATTERN.test(email) &&
-    password.length >= 8 &&
-    confirmPassword === password;
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitted(true);
-    if (!isValid) return;
-    console.log("signup", { firstName, lastName, email, password });
+    setFormError(undefined);
+
+    const parsed = signupSchema.safeParse({
+      firstName,
+      lastName,
+      email,
+      password,
+      confirmPassword,
+    });
+    if (!parsed.success) {
+      setFieldErrors(parsed.error.flatten().fieldErrors);
+      return;
+    }
+    setFieldErrors({});
+    setIsSubmitting(true);
+
+    const result = await signup(parsed.data);
+
+    if (!result.success) {
+      setIsSubmitting(false);
+      if (result.fieldErrors) setFieldErrors(result.fieldErrors);
+      if (result.error) setFormError(result.error);
+      return;
+    }
+
+    router.push("/");
+    router.refresh();
   }
 
   return (
@@ -56,6 +58,14 @@ export default function SignupPage() {
       subtitle="Start tracking your expenses in minutes."
     >
       <form className="flex flex-col gap-5" onSubmit={handleSubmit} noValidate>
+        {formError && (
+          <p
+            role="alert"
+            className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-400"
+          >
+            {formError}
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <FormField
             id="firstName"
@@ -65,7 +75,7 @@ export default function SignupPage() {
             placeholder="Jane"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            error={firstNameError}
+            error={fieldErrors.firstName?.[0]}
           />
           <FormField
             id="lastName"
@@ -75,7 +85,7 @@ export default function SignupPage() {
             placeholder="Doe"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
-            error={lastNameError}
+            error={fieldErrors.lastName?.[0]}
           />
         </div>
         <FormField
@@ -86,7 +96,7 @@ export default function SignupPage() {
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          error={emailError}
+          error={fieldErrors.email?.[0]}
         />
         <FormField
           id="password"
@@ -96,7 +106,7 @@ export default function SignupPage() {
           placeholder="••••••••"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          error={passwordError}
+          error={fieldErrors.password?.[0]}
         />
         <FormField
           id="confirmPassword"
@@ -106,13 +116,14 @@ export default function SignupPage() {
           placeholder="••••••••"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          error={confirmPasswordError}
+          error={fieldErrors.confirmPassword?.[0]}
         />
         <button
           type="submit"
-          className="mt-2 flex h-11 w-full items-center justify-center rounded-full bg-foreground px-5 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+          disabled={isSubmitting}
+          className="mt-2 flex h-11 w-full items-center justify-center rounded-full bg-foreground px-5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-60 dark:hover:bg-[#ccc]"
         >
-          Sign up
+          {isSubmitting ? "Creating account…" : "Sign up"}
         </button>
       </form>
       <p className="mt-6 text-center text-sm text-zinc-600 dark:text-zinc-400">

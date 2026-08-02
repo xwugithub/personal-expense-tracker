@@ -9,6 +9,7 @@ export interface IUser {
   lastName: string;
   email: string;
   passwordHash: string;
+  sessionVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +39,7 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods, object, IUserVirtu
       match: EMAIL_PATTERN,
     },
     passwordHash: { type: String, required: true, select: false },
+    sessionVersion: { type: Number, required: true, default: 0 },
   },
   { timestamps: true },
 );
